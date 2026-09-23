@@ -1,0 +1,66 @@
+test_auto_never_syncs_just_because_network_changed (test_controller.ControllerTests.test_auto_never_syncs_just_because_network_changed) ... ok
+test_corrupt_filesystem_not_mounted (test_controller.ControllerTests.test_corrupt_filesystem_not_mounted) ... ok
+test_eject_triggers_sync (test_controller.ControllerTests.test_eject_triggers_sync) ... ok
+test_explicit_handoff_triggers_sync (test_controller.ControllerTests.test_explicit_handoff_triggers_sync) ... ok
+test_present_refuses_existing_local_mount (test_controller.ControllerTests.test_present_refuses_existing_local_mount) ... ok
+test_present_refuses_recovery_marker (test_controller.ControllerTests.test_present_refuses_recovery_marker) ... ok
+test_recovery_does_not_loop_automatically (test_controller.ControllerTests.test_recovery_does_not_loop_automatically) ... ok
+test_refresh_refuses_active_writable_host (test_controller.ControllerTests.test_refresh_refuses_active_writable_host) ... ok
+test_unload_failure_propagates (test_controller.ControllerTests.test_unload_failure_propagates) ... ok
+test_wrong_filesystem_not_formatted (test_controller.ControllerTests.test_wrong_filesystem_not_formatted) ... ok
+test_baseline_not_committed_before_controller_unmount (test_sync.SyncTests.test_baseline_not_committed_before_controller_unmount) ... ok
+test_both_update (test_sync.SyncTests.test_both_update) ... ok
+test_case_only_rename (test_sync.SyncTests.test_case_only_rename) ... ok
+test_cross_side_case_collision (test_sync.SyncTests.test_cross_side_case_collision) ... ok
+test_delete_vs_host_edit (test_sync.SyncTests.test_delete_vs_host_edit) ... ok
+test_deleted_empty_directory (test_sync.SyncTests.test_deleted_empty_directory) ... ok
+test_deleted_nested_directory (test_sync.SyncTests.test_deleted_nested_directory) ... ok
+test_directory_file_collision (test_sync.SyncTests.test_directory_file_collision) ... ok
+test_duplicate_deleted_from_web_stays_deleted (test_sync.SyncTests.test_duplicate_deleted_from_web_stays_deleted) ... ok
+test_empty (test_sync.SyncTests.test_empty) ... ok
+test_empty_directory (test_sync.SyncTests.test_empty_directory) ... ok
+test_fat_size_limit (test_sync.SyncTests.test_fat_size_limit) ... ok
+test_file_directory_collision (test_sync.SyncTests.test_file_directory_collision) ... ok
+test_hardlink_rejected (test_sync.SyncTests.test_hardlink_rejected) ... ok
+test_host_delete_not_propagated (test_sync.SyncTests.test_host_delete_not_propagated) ... ok
+test_host_new_file_in_deleted_folder_preserved_as_duplicate (test_sync.SyncTests.test_host_new_file_in_deleted_folder_preserved_as_duplicate) ... ok
+test_identical_conflict_reuses_name (test_sync.SyncTests.test_identical_conflict_reuses_name) ... ok
+test_initial_conflict (test_sync.SyncTests.test_initial_conflict) ... ok
+test_initial_network_file (test_sync.SyncTests.test_initial_network_file) ... ok
+test_initial_target_file (test_sync.SyncTests.test_initial_target_file) ... ok
+test_local_case_collision_rejected (test_sync.SyncTests.test_local_case_collision_rejected) ... ok
+test_metadata_preserved_not_imported (test_sync.SyncTests.test_metadata_preserved_not_imported) ... ok
+test_nested_import (test_sync.SyncTests.test_nested_import) ... ok
+test_network_update_no_false_duplicate (test_sync.SyncTests.test_network_update_no_false_duplicate) ... ok
+test_out_of_space_does_not_delete_target (test_sync.SyncTests.test_out_of_space_does_not_delete_target) ... ok
+test_randomized_convergence (test_sync.SyncTests.test_randomized_convergence) ... ok
+test_repeat_no_recursion (test_sync.SyncTests.test_repeat_no_recursion) ... ok
+test_retry_after_uncommitted_sync (test_sync.SyncTests.test_retry_after_uncommitted_sync) ... ok
+test_safe_paths (test_sync.SyncTests.test_safe_paths) ... ok
+test_same_simultaneous_update (test_sync.SyncTests.test_same_simultaneous_update) ... ok
+test_same_size_same_mtime_host_edit (test_sync.SyncTests.test_same_size_same_mtime_host_edit) ... ok
+test_symlink_rejected (test_sync.SyncTests.test_symlink_rejected) ... ok
+test_target_update_duplicate (test_sync.SyncTests.test_target_update_duplicate) ... ok
+test_web_delete_not_resurrected (test_sync.SyncTests.test_web_delete_not_resurrected) ... ok
+test_csrf_required (test_web.WebTests.test_csrf_required) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_delete_restore (test_web.WebTests.test_delete_restore) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_download (test_web.WebTests.test_download) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_folder_creation (test_web.WebTests.test_folder_creation) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_listing_renders (test_web.WebTests.test_listing_renders) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_login_required (test_web.WebTests.test_login_required) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_other_templates (test_web.WebTests.test_other_templates) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_rename (test_web.WebTests.test_rename) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_replace_to_trash (test_web.WebTests.test_replace_to_trash) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_symlink_blocked (test_web.WebTests.test_symlink_blocked) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_sync_only_enqueues (test_web.WebTests.test_sync_only_enqueues) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_sync_requires_handoff (test_web.WebTests.test_sync_requires_handoff) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_text_concurrent_edit_rejected (test_web.WebTests.test_text_concurrent_edit_rejected) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_text_edit (test_web.WebTests.test_text_edit) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_traversal_blocked (test_web.WebTests.test_traversal_blocked) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_upload (test_web.WebTests.test_upload) ... skipped 'Flask/Werkzeug not installed in this test environment'
+test_upload_collision_preserves_original (test_web.WebTests.test_upload_collision_preserves_original) ... skipped 'Flask/Werkzeug not installed in this test environment'
+
+----------------------------------------------------------------------
+Ran 61 tests in 1.137s
+
+OK (skipped=17)

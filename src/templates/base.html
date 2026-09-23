@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MobileUSB</title><link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}"></head>
+<body><main><header><a class="brand" href="{{ url_for('index') }}">MobileUSB</a><span>Wireless file manager</span>{% if session.get('authenticated') %}<nav><a href="{{ url_for('index') }}">Files</a><a href="{{ url_for('trash_view') }}">Trash</a><form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><button>Log out</button></form></nav>{% endif %}</header>
+{% for message in get_flashed_messages() %}<p class="notice">{{ message }}</p>{% endfor %}
+{% block body %}{% endblock %}
+<footer>Web changes affect incoming. Target changes are imported only during a safe USB handoff. No live mounting of the host's writable filesystem.</footer></main></body></html>

@@ -1,0 +1,41 @@
+# Python and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+.ssh/
+*.pem
+*.key
+auth.json
+config.json
+mobileusb-web-login.txt
+
+# USB content, backups, staging, and generated state
+*.img
+*.img.*
+*.img-*
+*.iso
+*.bak
+incoming/
+.upload-tmp/
+.trash/
+state/
+requests/
+manifest.json
+recovery-required.json
+status.json
+*.lock
+*.log
+!test-results.log
+
+# Editor and desktop files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
