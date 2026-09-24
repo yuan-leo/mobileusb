@@ -225,7 +225,10 @@ PrivateTmp=yes
 PrivateDevices=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/srv/mobileusb/incoming /srv/mobileusb/.upload-tmp /srv/mobileusb/.trash /srv/mobileusb/.requests /var/lib/mobileusb/data.lock
+# One common writable mount preserves atomic moves between staging, incoming and Trash.
+ReadWritePaths=/srv/mobileusb /var/lib/mobileusb/data.lock
+# Only the web process is barred from writing the USB backing image.
+ReadOnlyPaths=/srv/mobileusb/usb.img
 ProtectKernelTunables=yes
 ProtectControlGroups=yes
 RestrictSUIDSGID=yes
