@@ -91,7 +91,11 @@ def main():
         assert 'ReadWritePaths=/srv/mobileusb /var/lib/mobileusb/data.lock' in source, path
         assert 'ReadOnlyPaths=/srv/mobileusb/usb.img' in source, path
         assert 'ReadWritePaths=/srv/mobileusb/incoming ' not in source, path
-    command('unshare','--user','--map-root-user','--mount','--fork',sys.executable,str(Path(__file__).resolve()),'--inside-namespace')
+    # A mapped root cannot traverse every runner-owned checkout. Feed this test
+    # through stdin, after validating repository configuration outside the namespace.
+    subprocess.run(['unshare','--user','--map-root-user','--mount','--fork',
+                    sys.executable,'-','--inside-namespace'],
+                   input=Path(__file__).read_text(), text=True, check=True, cwd='/tmp')
 
 
 if __name__=='__main__':
