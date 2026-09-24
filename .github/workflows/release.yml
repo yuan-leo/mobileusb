@@ -1,0 +1,97 @@
+name: Test and publish MobileUSB
+
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mobileusb-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out the exact triggering commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git --hostname github.com
+          git init --initial-branch=main .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+
+      - name: Install isolated test dependencies
+        run: |
+          python3 -m venv .ci-venv
+          .ci-venv/bin/python -m pip install 'Flask>=3.1,<4' gunicorn
+
+      - name: Require all software tests to pass without skips
+        env:
+          MOBILEUSB_TESTING: '1'
+          PYTHONPATH: src
+        run: |
+          .ci-venv/bin/python - <<'PY'
+          import unittest
+          suite = unittest.defaultTestLoader.discover('tests')
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if not result.wasSuccessful() or result.skipped or result.testsRun < 61:
+              raise SystemExit('All 61 or more tests must pass with no skips before release')
+          PY
+
+      - name: Reproduce EXDEV and check the fixed Linux mount layout
+        run: sudo python3 scripts/check_storage_namespace.py
+
+      - name: Check syntax and build reproducible installer assets
+        run: |
+          set -euo pipefail
+          bash -n install.sh
+          bash -n scripts/fix-web-storage.sh
+          .ci-venv/bin/python -m compileall -q src scripts
+          .ci-venv/bin/python scripts/build_release.py --update-tracked
+          .ci-venv/bin/python scripts/build_release.py --check
+          bash -n dist/mobileusb-upgrade.sh
+          bash dist/mobileusb-upgrade.sh --extract "$RUNNER_TEMP/mobileusb-extracted"
+          cmp install.sh "$RUNNER_TEMP/mobileusb-extracted/install.sh"
+          cmp scripts/fix-web-storage.sh "$RUNNER_TEMP/mobileusb-extracted/scripts/fix-web-storage.sh"
+          (cd dist && sha256sum --check SHA256SUMS)
+
+      - name: Commit the rebuilt standalone installer without rewriting history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- mobileusb-upgrade.sh
+          if ! git diff --cached --quiet; then
+            git commit -m "build: refresh standalone installer for v$(cat VERSION)"
+            git push origin HEAD:main
+          fi
+
+      - name: Publish the release and checksum-labelled assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION=$(tr -d '\r\n' < VERSION)
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          TAG="v$VERSION"
+          test -f "docs/releases/$TAG.md"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing to overwrite it." >&2
+            exit 1
+          fi
+          gh release create "$TAG" dist/mobileusb-upgrade.sh dist/mobileusb-fix-web-storage.sh dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --target "$(git rev-parse HEAD)" \
+            --title "MobileUSB $TAG - atomic web storage fix" \
+            --notes-file "docs/releases/$TAG.md" --latest
