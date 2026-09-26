@@ -13,6 +13,40 @@ import uuid
 from flask import Flask, Request, abort, flash, jsonify, redirect, render_template, request, send_file, session, url_for
 from werkzeug.security import check_password_hash
 from common import FAT_MAX, SafetyError, atomic_json, fsync_dir, hash_file, load_config, lock, read_json, relative_path, safe_path, validate_name
+from controller import usb_state
+
+
+def describe_target(usb):
+    details = usb.get("udc_details") or {}
+    states = [v.get("state", "") for v in details.values()]
+    speeds = [v.get("speed", "") for v in details.values() if v.get("speed")]
+    functions = [v.get("function", "") for v in details.values() if v.get("function")]
+    if not states:
+        states = list((usb.get("udc") or {}).values())
+    state = next((v for v in states if v), "unknown")
+    speed = next((v for v in speeds if v and v != "UNKNOWN"), next(iter(speeds), "UNKNOWN"))
+    function = next(iter(functions), "g_mass_storage" if usb.get("module_loaded") else "")
+    media = next((v for v in (usb.get("lun_files") or {}).values() if v), "")
+
+    if not usb.get("module_loaded"):
+        code, label = "offline", "USB disconnected"
+        message = "The target should not see MobileUSB."
+    elif usb.get("host_ejected"):
+        code, label = "ejected", "Media ejected"
+        message = "The USB function is present, but the target has ejected the storage media."
+    elif "configured" in states:
+        code, label = "configured", "Connected / configured"
+        message = "The target should see MobileUSB as a USB mass-storage drive."
+    elif any(v not in ("", "not attached", "unknown") for v in states):
+        code, label = "enumerating", "USB enumerating"
+        message = "The target is negotiating the USB connection; storage may not be visible yet."
+    else:
+        code, label = "not-attached", "Not attached"
+        message = "The gadget is loaded, but no USB host connection is detected."
+
+    return {"code": code, "label": label, "message": message, "state": state,
+            "speed": speed or "UNKNOWN", "function": function or "unknown",
+            "backing_image": media or "not currently assigned"}
 
 
 def create_app(config=None):
@@ -163,6 +197,16 @@ def create_app(config=None):
         value = read_json(state / "status.json", {})
         value["sd_free"] = shutil.disk_usage(root).free
         value["queued"] = (queue / "pending").exists() or value.get("pending", False)
+        value["usb_control_pending"] = (queue / "control.json").exists()
+        try:
+            live = usb_state(cfg)
+            value["usb_live"] = live
+            value["target_view"] = describe_target(live)
+        except (OSError, SafetyError) as error:
+            live = value.get("usb", {})
+            value["usb_live"] = live
+            value["target_view"] = describe_target(live)
+            value["target_view"]["read_error"] = str(error)
         return value
 
     @app.get("/status")
@@ -327,6 +371,28 @@ def create_app(config=None):
                 if meta:
                     items.append(dict(meta, id=p.name))
         return render_template("trash.html", items=sorted(items, key=lambda v: -v["time"]))
+
+    @app.post("/usb-control")
+    def usb_control():
+        rel = relative_path(request.form.get("path", ""))
+        action = request.form.get("action", "")
+        if action not in ("disconnect", "present"):
+            abort(400)
+        if action == "disconnect" and request.form.get("target_safe") != "yes":
+            raise SafetyError("Force disconnect simulates pulling the USB drive. Confirm the target is idle/ejected before continuing.")
+        current = get_status()
+        if current.get("phase") == "syncing" or (queue / "refresh.json").exists() or (queue / "control.json").exists():
+            raise SafetyError("A USB control or synchronization request is already running or queued")
+        payload = {"action": action, "time": time.time(),
+                   "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip()}
+        if action == "disconnect":
+            payload["target_safe"] = True
+        atomic_json(queue / "control.json", payload, mode=0o600)
+        if action == "disconnect":
+            flash("USB disconnect requested. This simulates unplugging the drive; status will update after the controller runs.")
+        else:
+            flash("USB presentation requested. This reconnects the existing image without synchronizing queued web changes.")
+        return redirect(url_for("index", path=rel))
 
     @app.post("/sync")
     def sync():

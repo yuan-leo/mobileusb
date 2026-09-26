@@ -32,6 +32,36 @@ class ControllerTests(unittest.TestCase):
         (Path(self.cfg['requests'])/'refresh.json').write_text(json.dumps({'host_ejected':True,'time':__import__('time').time(),'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip()}))
         with patch.object(controller,'usb_state',return_value={'module_loaded':True,'host_ejected':False}),patch.object(controller,'sync_once') as sync:
             controller.poll(self.cfg); sync.assert_called_once_with(self.cfg,acknowledged=True)
+    def test_control_disconnect_requires_target_safe_ack(self):
+        request=Path(self.cfg['requests'])/'control.json'
+        request.write_text(json.dumps({'action':'disconnect','time':__import__('time').time(),
+                                       'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip()}))
+        with patch.object(controller,'disconnect') as dis:
+            controller.poll(self.cfg)
+            dis.assert_not_called()
+        self.assertFalse(request.exists())
+        self.assertIn('acknowledgement',json.loads((Path(self.cfg['state'])/'status.json').read_text())['error'])
+
+    def test_control_disconnect_executes_once(self):
+        request=Path(self.cfg['requests'])/'control.json'
+        request.write_text(json.dumps({'action':'disconnect','target_safe':True,'time':__import__('time').time(),
+                                       'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip()}))
+        with patch.object(controller,'disconnect') as dis,patch.object(controller,'usb_state',return_value={'module_loaded':False,'udc':{},'udc_details':{},'lun_files':{},'host_ejected':False}):
+            controller.poll(self.cfg)
+            dis.assert_called_once_with(self.cfg)
+        self.assertFalse(request.exists())
+        self.assertEqual(json.loads((Path(self.cfg['state'])/'status.json').read_text())['phase'],'offline')
+
+    def test_control_present_executes_without_sync(self):
+        request=Path(self.cfg['requests'])/'control.json'
+        request.write_text(json.dumps({'action':'present','time':__import__('time').time(),
+                                       'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip()}))
+        with patch.object(controller,'present') as present,patch.object(controller,'sync_once') as sync:
+            controller.poll(self.cfg)
+            present.assert_called_once_with(self.cfg)
+            sync.assert_not_called()
+        self.assertFalse(request.exists())
+
     def test_recovery_does_not_loop_automatically(self):
         (Path(self.cfg['state'])/'recovery-required.json').write_text('{}')
         with patch.object(controller,'sync_once') as sync: controller.poll(self.cfg); sync.assert_not_called()

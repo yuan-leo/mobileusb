@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
 os.environ['MOBILEUSB_TESTING']='1'
 try:
@@ -60,6 +61,42 @@ class WebTests(unittest.TestCase):
         self.assertEqual(self.post('/sync').status_code,409); self.assertFalse((Path(self.cfg['requests'])/'refresh.json').exists())
     def test_sync_only_enqueues(self):
         self.assertEqual(self.post('/sync',{'host_ejected':'yes'}).status_code,302); self.assertTrue((Path(self.cfg['requests'])/'refresh.json').exists())
+    def test_status_describes_configured_target(self):
+        live={'module_loaded':True,'host_ejected':False,
+              'udc':{'20980000.usb':'configured'},
+              'udc_details':{'20980000.usb':{'state':'configured','speed':'high-speed','function':'g_mass_storage'}},
+              'lun_files':{'/sys/fake/lun0/file':'/srv/mobileusb/usb.img'}}
+        with patch('web.usb_state',return_value=live):
+            data=self.client.get('/status').get_json()
+        self.assertEqual(data['target_view']['code'],'configured')
+        self.assertIn('should see MobileUSB',data['target_view']['message'])
+        self.assertEqual(data['target_view']['speed'],'high-speed')
+
+    def test_usb_disconnect_requires_acknowledgement(self):
+        r=self.post('/usb-control',{'action':'disconnect'})
+        self.assertEqual(r.status_code,409)
+        self.assertFalse((Path(self.cfg['requests'])/'control.json').exists())
+
+    def test_usb_disconnect_only_enqueues_guarded_request(self):
+        r=self.post('/usb-control',{'action':'disconnect','target_safe':'yes','path':''})
+        self.assertEqual(r.status_code,302)
+        data=json.loads((Path(self.cfg['requests'])/'control.json').read_text())
+        self.assertEqual(data['action'],'disconnect')
+        self.assertIs(data['target_safe'],True)
+
+    def test_usb_present_only_enqueues_request(self):
+        r=self.post('/usb-control',{'action':'present','path':''})
+        self.assertEqual(r.status_code,302)
+        data=json.loads((Path(self.cfg['requests'])/'control.json').read_text())
+        self.assertEqual(data['action'],'present')
+        self.assertNotIn('target_safe',data)
+
+    def test_index_has_drag_drop_and_usb_controls(self):
+        data=self.client.get('/').get_data(as_text=True)
+        self.assertIn('id="drop-zone"',data)
+        self.assertIn('Force disconnect',data)
+        self.assertIn('Force present',data)
+
     def test_other_templates(self):
         (self.net/'a.txt').write_bytes(b'abc')
         for route in ['/trash','/action?kind=edit&path=a.txt','/action?kind=delete&path=a.txt','/action?kind=rename&path=a.txt']:

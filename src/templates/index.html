@@ -1,5 +1,75 @@
 {% extends 'base.html' %}{% block body %}
-<section class="card"><h1>Files <span class="muted">/{{ path }}</span></h1><p id="status" aria-live="polite">{{ status.get('phase', 'starting') }}{% if status.get('queued') %} - changes queued{% endif %}</p><p class="muted">microSD free: {{ status.get('sd_free')|size }} &middot; USB volume free at last sync: {{ status.get('usb_free')|size }} &middot; Last sync: {{ status.get('last_sync')|date }}</p><pre id="error">{{ status.get('error') or '' }}</pre>
-<form method="post" action="{{ url_for('sync') }}" class="handoff"><input type="hidden" name="csrf" value="{{ csrf() }}"><label class="check"><input type="checkbox" name="host_ejected" value="yes" required>I have ejected/unmounted the USB drive on the target and it is no longer using it.</label><button>Sync now / reconnect USB</button></form><p class="muted">Usually synchronization starts automatically within about 10 seconds after the target ejects the media. If the target does not signal ejection, use the button only after a confirmed unmount. Closing a file or waiting for idle is not a guaranteed flush.</p></section>
-<section class="card tools"><form method="post" enctype="multipart/form-data" action="{{ url_for('upload') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="path" value="{{ path }}"><label>Upload files<input type="file" name="files" multiple required></label><label class="check"><input type="checkbox" name="replace" value="yes">Replace matching files (old incoming copies go to Trash)</label><button>Upload</button></form><form method="post" action="{{ url_for('mkdir') }}"><input type="hidden" name="csrf" value="{{ csrf() }}"><input type="hidden" name="path" value="{{ path }}"><label>New folder<input name="name" required maxlength="100"></label><button>Create folder</button></form></section>
-<section class="card"><p>{% if path %}<a href="{{ url_for('index', path=parent) }}">Parent folder</a> &middot; {% endif %}<a href="{{ url_for('index', path=path) }}">Refresh listing</a></p><div class="scroll"><table><thead><tr><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead><tbody>{% for e in entries %}<tr><td>{% if e.dir %}<a href="{{ url_for('index', path=e.path) }}">{{ e.name }}/</a>{% else %}{{ e.name }}{% endif %}</td><td>{{ 'Folder' if e.dir else e.size|size }}</td><td>{{ e.mtime|date }}</td><td class="actions">{% if not e.dir %}<a href="{{ url_for('download', path=e.path) }}">Download</a><a href="{{ url_for('action', kind='edit', path=e.path) }}">Edit text</a>{% endif %}<a href="{{ url_for('action', kind='rename', path=e.path) }}">Rename</a><a href="{{ url_for('action', kind='delete', path=e.path) }}">Delete</a></td></tr>{% else %}<tr><td colspan="4">This folder is empty.</td></tr>{% endfor %}</tbody></table></div></section><script src="{{ url_for('static', filename='app.js') }}" defer></script>{% endblock %}
+<section class="card">
+  <div class="section-head">
+    <div><h1>USB drive status</h1><p class="muted">Live view of how MobileUSB should appear to the connected target.</p></div>
+    <span id="target-badge" class="status-badge status-{{ status.get('target_view', {}).get('code', 'unknown') }}">{{ status.get('target_view', {}).get('label', 'Starting') }}</span>
+  </div>
+  <p id="target-message" class="target-message" aria-live="polite">{{ status.get('target_view', {}).get('message', 'Reading USB controller state...') }}</p>
+  <dl class="status-grid">
+    <div><dt>USB state</dt><dd id="usb-state">{{ status.get('target_view', {}).get('state', 'unknown') }}</dd></div>
+    <div><dt>Negotiated speed</dt><dd id="usb-speed">{{ status.get('target_view', {}).get('speed', 'UNKNOWN') }}</dd></div>
+    <div><dt>Function</dt><dd id="usb-function">{{ status.get('target_view', {}).get('function', 'unknown') }}</dd></div>
+    <div><dt>Backing image</dt><dd id="usb-image">{{ status.get('target_view', {}).get('backing_image', 'unknown') }}</dd></div>
+    <div><dt>Queued changes</dt><dd id="queued-state">{{ 'Yes' if status.get('queued') else 'No' }}</dd></div>
+    <div><dt>Last sync</dt><dd id="last-sync">{{ status.get('last_sync')|date }}</dd></div>
+  </dl>
+  <p id="status" class="muted">{{ status.get('phase', 'starting') }}{% if status.get('queued') %} - changes queued{% endif %}</p>
+  <pre id="error">{{ status.get('error') or '' }}</pre>
+
+  <div class="usb-controls">
+    <form method="post" action="{{ url_for('usb_control') }}" class="danger-panel">
+      <input type="hidden" name="csrf" value="{{ csrf() }}">
+      <input type="hidden" name="path" value="{{ path }}">
+      <input type="hidden" name="action" value="disconnect">
+      <strong>Force disconnect / unmount from target</strong>
+      <p>This simulates unplugging the USB drive. It does not synchronize first. Using it while the printer is reading or writing can corrupt the FAT image or lose target writes.</p>
+      <label class="check"><input type="checkbox" name="target_safe" value="yes" required>I confirm the target is idle and has stopped using the USB drive.</label>
+      <button class="danger-button">Force disconnect</button>
+    </form>
+
+    <form method="post" action="{{ url_for('usb_control') }}" class="control-panel">
+      <input type="hidden" name="csrf" value="{{ csrf() }}">
+      <input type="hidden" name="path" value="{{ path }}">
+      <input type="hidden" name="action" value="present">
+      <strong>Force present / mount to target</strong>
+      <p>Reconnects the existing USB image to the target. Queued browser changes are not copied into the image by this action.</p>
+      <button>Force present</button>
+    </form>
+  </div>
+
+  <form method="post" action="{{ url_for('sync') }}" class="handoff">
+    <input type="hidden" name="csrf" value="{{ csrf() }}">
+    <label class="check"><input type="checkbox" name="host_ejected" value="yes" required>I have ejected/unmounted the USB drive on the target and it is no longer using it.</label>
+    <button>Sync queued changes / reconnect USB</button>
+  </form>
+  <p class="muted">Use sync when you need browser changes copied into the USB image. Usually synchronization starts automatically after a target ejects the media.</p>
+</section>
+
+<section class="card tools">
+  <form id="upload-form" method="post" enctype="multipart/form-data" action="{{ url_for('upload') }}">
+    <input type="hidden" name="csrf" value="{{ csrf() }}">
+    <input type="hidden" name="path" value="{{ path }}">
+    <label>Upload files<input id="upload-files" type="file" name="files" multiple required></label>
+    <div id="drop-zone" class="drop-zone" tabindex="0" role="button" aria-controls="upload-files">
+      <strong>Drag and drop files here</strong>
+      <span>or click to choose files</span>
+      <span id="drop-selection" class="muted">No files selected</span>
+    </div>
+    <label class="check"><input type="checkbox" name="replace" value="yes">Replace matching files (old incoming copies go to Trash)</label>
+    <button>Upload</button>
+  </form>
+  <form method="post" action="{{ url_for('mkdir') }}">
+    <input type="hidden" name="csrf" value="{{ csrf() }}">
+    <input type="hidden" name="path" value="{{ path }}">
+    <label>New folder<input name="name" required maxlength="100"></label>
+    <button>Create folder</button>
+  </form>
+</section>
+
+<section class="card">
+  <div class="section-head"><h2>Files <span class="muted">/{{ path }}</span></h2><p>{% if path %}<a href="{{ url_for('index', path=parent) }}">Parent folder</a> &middot; {% endif %}<a href="{{ url_for('index', path=path) }}">Refresh listing</a></p></div>
+  <p class="muted">microSD free: {{ status.get('sd_free')|size }} &middot; USB volume free at last sync: {{ status.get('usb_free')|size }}</p>
+  <div class="scroll"><table><thead><tr><th>Name</th><th>Size</th><th>Modified</th><th>Actions</th></tr></thead><tbody>{% for e in entries %}<tr><td>{% if e.dir %}<a href="{{ url_for('index', path=e.path) }}">{{ e.name }}/</a>{% else %}{{ e.name }}{% endif %}</td><td>{{ 'Folder' if e.dir else e.size|size }}</td><td>{{ e.mtime|date }}</td><td class="actions">{% if not e.dir %}<a href="{{ url_for('download', path=e.path) }}">Download</a><a href="{{ url_for('action', kind='edit', path=e.path) }}">Edit text</a>{% endif %}<a href="{{ url_for('action', kind='rename', path=e.path) }}">Rename</a><a href="{{ url_for('action', kind='delete', path=e.path) }}">Delete</a></td></tr>{% else %}<tr><td colspan="4">This folder is empty.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+<script src="{{ url_for('static', filename='app.js') }}" defer></script>
+{% endblock %}

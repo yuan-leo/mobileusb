@@ -1,0 +1,57 @@
+name: MobileUSB CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git --hostname github.com
+          git init --initial-branch=main .
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
+
+      - name: Install test dependencies
+        run: |
+          python3 -m venv .ci-venv
+          .ci-venv/bin/python -m pip install 'Flask>=3.1,<4' gunicorn
+
+      - name: Run complete software test suite
+        env:
+          MOBILEUSB_TESTING: '1'
+          PYTHONPATH: src
+        run: |
+          .ci-venv/bin/python - <<'PY'
+          import unittest
+          suite = unittest.defaultTestLoader.discover('tests')
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if not result.wasSuccessful() or result.skipped or result.testsRun < 69:
+              raise SystemExit('All 69 or more tests must pass with no skips')
+          PY
+
+      - name: Check Python, shell and browser JavaScript syntax
+        run: |
+          set -euo pipefail
+          .ci-venv/bin/python -m compileall -q src scripts tests
+          bash -n install.sh
+          bash -n scripts/fix-web-storage.sh
+          node --check src/static/app.js
+
+      - name: Reproduce EXDEV and verify shared storage namespace
+        run: |
+          sudo python3 scripts/check_storage_namespace.py

@@ -38,13 +38,26 @@ def lun_paths():
 
 
 def usb_state(cfg):
-    states = {}
-    for p in Path("/sys/class/udc").glob("*/state"):
-        states[p.parent.name] = p.read_text().strip()
+    states, details = {}, {}
+    for udc in Path("/sys/class/udc").glob("*"):
+        state_path = udc / "state"
+        state = state_path.read_text().strip() if state_path.exists() else "unknown"
+        states[udc.name] = state
+        def attr(name, default="unknown"):
+            p = udc / name
+            try:
+                return p.read_text().strip() if p.exists() else default
+            except OSError:
+                return default
+        details[udc.name] = {
+            "state": state,
+            "speed": attr("current_speed", "UNKNOWN"),
+            "function": attr("function", ""),
+        }
     luns = lun_paths() if module_loaded() else []
     media = {str(p): p.read_text().strip() for p in luns}
-    return {"module_loaded": module_loaded(), "udc": states, "lun_files": media,
-            "host_ejected": bool(media) and all(not v for v in media.values())}
+    return {"module_loaded": module_loaded(), "udc": states, "udc_details": details,
+            "lun_files": media, "host_ejected": bool(media) and all(not v for v in media.values())}
 
 
 def status_write(cfg, **updates):
@@ -147,6 +160,35 @@ def sync_once(cfg, acknowledged=False, boot=False):
 
 
 def poll(cfg):
+    control = Path(cfg["requests"]) / "control.json"
+    if control.exists():
+        fd = os.open(control, os.O_RDONLY | os.O_NOFOLLOW)
+        with os.fdopen(fd) as f:
+            request_value = json.loads(f.read(4097))
+        valid = (request_value.get("boot_id") == Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+                 and 0 <= time.time() - float(request_value.get("time", 0)) <= 120)
+        action = request_value.get("action")
+        control.unlink()
+        if not valid or action not in ("disconnect", "present"):
+            status_write(cfg, error="Stale or invalid USB control request ignored.")
+            return
+        if action == "disconnect":
+            if request_value.get("target_safe") is not True:
+                status_write(cfg, error="USB disconnect request lacked the required target-safe acknowledgement.")
+                return
+            with lock(Path(cfg["state"]) / "data.lock", timeout=600):
+                disconnect(cfg)
+                status_write(cfg, phase="offline", usb=usb_state(cfg), error=None)
+            return
+        live = usb_state(cfg)
+        if live["module_loaded"] and live["host_ejected"]:
+            with lock(Path(cfg["state"]) / "data.lock", timeout=600):
+                disconnect(cfg)
+                present(cfg)
+        else:
+            present(cfg)
+        return
+
     request = Path(cfg["requests"]) / "refresh.json"
     explicit = False
     if request.exists():
@@ -170,7 +212,17 @@ def poll(cfg):
     with lock(Path(cfg["state"]) / "data.lock", timeout=1, shared=True):
         manifest = read_json(Path(cfg["state"]) / "manifest.json", {})
         changed = signature(scan(cfg["incoming"], content=False)) != manifest.get("incoming_signature")
-    status_write(cfg, phase=("offline" if not usb["module_loaded"] else "waiting-for-eject" if changed else "ready"), pending=changed, usb=usb)
+    states = list((usb.get("udc") or {}).values())
+    attached = any(v not in ("", "not attached", "unknown") for v in states)
+    if not usb["module_loaded"]:
+        phase = "offline"
+    elif changed and attached:
+        phase = "waiting-for-eject"
+    elif changed:
+        phase = "changes-queued"
+    else:
+        phase = "ready"
+    status_write(cfg, phase=phase, pending=changed, usb=usb)
 
 
 def main():
