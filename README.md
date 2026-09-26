@@ -39,7 +39,9 @@ The backup is under `/var/backups/mobileusb/`. It includes program/configuration
 
 ## What the browser can do
 
-Browse folders, upload multiple files, replace existing incoming files, download, create folders, rename, edit UTF-8 text files up to 1 MiB, delete to Trash, restore or permanently remove Trash items, view sync status/errors, and request a safe synchronization. File deletions and overwrites made in the browser retain the prior incoming copy in `/srv/mobileusb/.trash` until you purge it.
+Browse folders, upload multiple files (file picker or drag-and-drop), replace existing incoming files, download, create folders, rename, edit UTF-8 text files up to 1 MiB, delete to Trash, restore or permanently remove Trash items, view live target-facing USB state, and request a safe synchronization. File deletions and overwrites made in the browser retain the prior incoming copy in `/srv/mobileusb/.trash` until you purge it.
+
+The USB status panel reports whether the target should currently see MobileUSB, plus the live UDC state, negotiated speed, gadget function, backing image, queued-change state, and last sync. The web controls can queue a force disconnect (simulated unplug) or force present (simulated replug). Force disconnect requires explicit acknowledgement that the target is idle and no longer using the drive. Force present reconnects the existing USB image and does not silently synchronize queued browser changes.
 
 Normal uploads choose an unused `_1`, `_2`, etc. name instead of overwriting. Enable the explicit replace checkbox to replace a matching file. Uploads are completed in `/srv/mobileusb/.upload-tmp` before becoming visible in incoming. Incoming, temporary uploads, and Trash must be on the same local filesystem.
 
