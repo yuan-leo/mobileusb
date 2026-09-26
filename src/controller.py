@@ -180,7 +180,13 @@ def poll(cfg):
                 disconnect(cfg)
                 status_write(cfg, phase="offline", usb=usb_state(cfg), error=None)
             return
-        present(cfg)
+        live = usb_state(cfg)
+        if live["module_loaded"] and live["host_ejected"]:
+            with lock(Path(cfg["state"]) / "data.lock", timeout=600):
+                disconnect(cfg)
+                present(cfg)
+        else:
+            present(cfg)
         return
 
     request = Path(cfg["requests"]) / "refresh.json"
