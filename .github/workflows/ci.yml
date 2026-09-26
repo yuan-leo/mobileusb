@@ -54,5 +54,4 @@ jobs:
 
       - name: Reproduce EXDEV and verify shared storage namespace
         run: |
-          cp scripts/check_storage_namespace.py /tmp/mobileusb-check-storage-namespace.py
-          sudo python3 /tmp/mobileusb-check-storage-namespace.py
+          sudo python3 scripts/check_storage_namespace.py
